@@ -23,10 +23,10 @@ function(_grog_add_plugin_lv2 target)
     )
 
     # Tool to generate plugin's metadata
-    add_executable("${target}_lv2_metadata_generator" 
+    add_executable("${target}_lv2_metadata" 
         ${GROG_AUDIO_PLUGIN_CLIENT_LV2_DIR}/tools/grog_lv2_metadata_generator.cpp)
-    target_link_libraries("${target}_lv2_metadata_generator" PRIVATE "${target}")
-    set_target_properties("${target}_lv2_metadata_generator"
+    target_link_libraries("${target}_lv2_metadata" PRIVATE "${target}")
+    set_target_properties("${target}_lv2_metadata"
         PROPERTIES
             ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/tools"
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/tools"
@@ -34,9 +34,9 @@ function(_grog_add_plugin_lv2 target)
     )
 
     # Call it after it is built
-    add_custom_command(TARGET "${target}_lv2_metadata_generator"
+    add_custom_command(TARGET "${target}_lv2_metadata"
         POST_BUILD
-            COMMAND "$<TARGET_FILE:${target}_lv2_metadata_generator>" 
+            COMMAND "$<TARGET_FILE:${target}_lv2_metadata>" 
             "$<TARGET_FILE_DIR:${target}_lv2>" "$<TARGET_FILE_NAME:${target}_lv2>" 
             "${target}_lv2" "${arg_LV2URI}" VERBATIM)
 endfunction()

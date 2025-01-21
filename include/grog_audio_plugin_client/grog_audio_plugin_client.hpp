@@ -36,9 +36,27 @@ namespace Grog {
     class PortManager {
     public:
         Port* CreatePort(const char* name, const char* symbol, PortType type, PortDirection direction);
+        
+        inline size_t GetPortCount() const { return ports.size(); }
+        inline Port* GetPort(size_t idx) { return &ports[idx]; }
     
     private:
         std::vector<Port> ports{};
+    };
+
+    enum class AudioPluginType {
+        DelayPlugin,
+        DistortionPlugin,
+        DynamicsPlugin,
+        FilterPlugin,
+        GeneratorPlugin,
+        MIDIPlugin,
+        ModulatorPlugin,
+        ReverbPlugin,
+        SimulatorPlugin,
+        SpatialPlugin,
+        SpectralPlugin,
+        UtilityPlugin
     };
 
     class AudioPluginGUI {
@@ -63,6 +81,7 @@ namespace Grog {
         virtual bool HasGUI() const { return false; }
 
         virtual const char* GetName() const = 0;
+        virtual AudioPluginType GetType() const = 0;
     };
 
     AudioPlugin* InstantiatePlugin();
