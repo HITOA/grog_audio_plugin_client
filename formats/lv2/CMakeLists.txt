@@ -10,11 +10,24 @@ endif()
 
 set(GROG_AUDIO_PLUGIN_CLIENT_LV2_DIR ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "Grog audio plugin client lv2 source dir.")
 
+if (PKG_CONFIG_FOUND)
+    pkg_check_modules(LV2 lv2)
+endif()
+
+if (LV2_FOUND)
+    set(GROG_AUDIO_PLUGIN_CLIENT_LV2_SDK_OK TRUE CACHE INTERNAL "Grog audio plugin client lv2 SDL is ok.")
+endif()
+
 function(_grog_add_plugin_lv2 target)
+    if(NOT DEFINED GROG_AUDIO_PLUGIN_CLIENT_LV2_SDK_OK)
+        message(WARNING "Not building lv2 plugin. The lv2 SDK could not be found.")
+        return()
+    endif()
+
     add_library("${target}_lv2" 
         SHARED 
             ${GROG_AUDIO_PLUGIN_CLIENT_LV2_DIR}/grog_audio_plugin_client_lv2.cpp)
-    target_link_libraries("${target}_lv2" PRIVATE "${target}")
+    target_link_libraries("${target}_lv2" PRIVATE "${target}" "${LV2_LIBRARIES}")
     set_target_properties("${target}_lv2"
         PROPERTIES
             ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/lv2"

@@ -10,8 +10,10 @@ endif()
 
 set(GROG_AUDIO_PLUGIN_CLIENT_DIR ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "Grog audio plugin client source dir.")
 
-add_subdirectory(formats/lv2)
-add_subdirectory(formats/standalone)
+find_package(PkgConfig)
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/formats/lv2)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/formats/standalone)
 
 add_library(grog_audio_plugin_client STATIC ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/grog_audio_plugin_client.cpp)
 target_include_directories(grog_audio_plugin_client PUBLIC ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/include)
@@ -36,3 +38,5 @@ function(grog_add_plugin target)
         _grog_add_plugin_lv2("${target}")
     endif()
 endfunction()
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
