@@ -227,71 +227,6 @@ std::string MakeTTLString(const std::string& str) {
     return std::string{ "\"" } + str + "\"";
 }
 
-std::string ParseAudioPluginType(Grog::AudioPluginType type) {
-    switch (type) {
-        case Grog::AudioPluginType::DelayPlugin:
-            return "lv2:DelayPlugin";
-        case Grog::AudioPluginType::DistortionPlugin:
-            return "lv2:DistortionPlugin";
-        case Grog::AudioPluginType::DynamicsPlugin:
-            return "lv2:DynamicsPlugin";
-        case Grog::AudioPluginType::FilterPlugin:
-            return "lv2:FilterPlugin";
-        case Grog::AudioPluginType::GeneratorPlugin:
-            return "lv2:GeneratorPlugin";
-        case Grog::AudioPluginType::MIDIPlugin:
-            return "lv2:MIDIPlugin";
-        case Grog::AudioPluginType::ModulatorPlugin:
-            return "lv2:ModulatorPlugin";
-        case Grog::AudioPluginType::ReverbPlugin:
-            return "lv2:ReverbPlugin";
-        case Grog::AudioPluginType::SimulatorPlugin:
-            return "lv2:SimulatorPlugin";
-        case Grog::AudioPluginType::SpatialPlugin:
-            return "lv2:SpatialPlugin";
-        case Grog::AudioPluginType::SpectralPlugin:
-            return "lv2:SpectralPlugin";
-        case Grog::AudioPluginType::UtilityPlugin:
-            return "lv2:UtilityPlugin";
-        default:
-            return "lv2:Plugin";
-    }
-}
-
-void FillPortBNode(std::shared_ptr<Subject> bnode, Grog::Port* port, int index) {
-    auto a = bnode->CreatePredicate("a");
-    const Grog::PortInfo& info = port->GetInfo();
-    
-    switch(info.direction) {
-        case Grog::PortDirection::InputPort:
-            a->CreateObject("lv2:InputPort");
-            break;
-        case Grog::PortDirection::OutputPort:
-            a->CreateObject("lv2:OutputPort");
-            break;
-        default:
-            break;
-    }
-
-    switch(info.type) {
-        case Grog::PortType::AudioPort:
-            a->CreateObject("lv2:AudioPort");
-            break;
-        case Grog::PortType::MidiPort:
-            a->CreateObject("lv2:EventPort");
-            break;
-        case Grog::PortType::ControlPort:
-            a->CreateObject("lv2:ControlPort");
-            break;
-        default:
-            break;
-    }
-
-    bnode->CreatePredicate("lv2:index")->CreateObject(std::to_string(index));
-    bnode->CreatePredicate("lv2:symbol")->CreateObject(MakeTTLString(info.symbol));
-    bnode->CreatePredicate("lv2:name")->CreateObject(MakeTTLString(info.name));
-}
-
 int main(int argc, char** argv) {
     if (argc < 5)
         return -1;
@@ -312,24 +247,72 @@ int main(int argc, char** argv) {
     manifest.WriteFile(targetFileDir + "/manifest.ttl");
 
     Grog::AudioPlugin* pluginInstance = Grog::InstantiatePlugin();
-    Grog::PortManager manager{};
-    pluginInstance->InitializePort(manager);
-
-    std::string lv2PluginType = ParseAudioPluginType(pluginInstance->GetType());
-
+    
     RDF plugin{};
     plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/lv2core#"), "lv2");
     plugin.CreatePrefix(MakeTTLURI("http://usefulinc.com/ns/doap#"), "doap");
     plugin.CreatePrefix(MakeTTLURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#"), "rdf");
     plugin.CreatePrefix(MakeTTLURI("http://www.w3.org/2000/01/rdf-schema#"), "rdfs");
     auto pluginSubject = plugin.CreateSubject(MakeTTLURI(targetLV2URI));
-    pluginSubject->CreatePredicate("a")->CreateObject("lv2:Plugin")->CreateObject(lv2PluginType);
+    pluginSubject->CreatePredicate("a")->CreateObject("lv2:Plugin");
     pluginSubject->CreatePredicate("doap:name")->CreateObject(MakeTTLString(pluginInstance->GetName()));
     auto pluginPortPredicate = pluginSubject->CreatePredicate("lv2:port");
 
-    for (size_t i = 0; i < manager.GetPortCount(); ++i) {
-        Grog::Port* port = manager.GetPort(i);
-        FillPortBNode(pluginPortPredicate->CreateBNode(), port, (int)i);
+    size_t index = 0;
+    for (size_t i = 0; i < pluginInstance->GetPortCount(); ++i) {
+        Grog::Port* port = pluginInstance->GetPort(i);
+        for (uint32_t j = 0; j < port->GetChannelCount(); ++j) {
+            std::string name = port->GetName();
+            std::string symbol = port->GetSymbol();
+            std::string nameSuffix = "";
+            std::string symbolSuffix = "";
+
+            if (port->GetChannelCount() > 1) {
+                nameSuffix = " " + std::to_string(j);
+                symbolSuffix = "_" + std::to_string(j);
+            }
+
+            auto bnode = pluginPortPredicate->CreateBNode();
+
+            auto a = bnode->CreatePredicate("a");
+
+            switch(port->GetType()) {
+                case Grog::PortType::InputPort:
+                    a->CreateObject("lv2:InputPort");
+                    break;
+                case Grog::PortType::OutputPort:
+                    a->CreateObject("lv2:OutputPort");
+                    break;
+                default:
+                    break;
+            }
+
+            switch(port->GetDataType()) {
+                case Grog::PortDataType::AudioPort:
+                    a->CreateObject("lv2:AudioPort");
+                    break;
+                case Grog::PortDataType::ControlPort:
+                    a->CreateObject("lv2:ControlPort");
+                    break;
+                default:
+                    break;
+            }
+
+            bnode->CreatePredicate("lv2:index")->CreateObject(std::to_string(index));
+            bnode->CreatePredicate("lv2:symbol")->CreateObject(MakeTTLString(symbol + symbolSuffix));
+            bnode->CreatePredicate("lv2:name")->CreateObject(MakeTTLString(name + nameSuffix));
+
+            if (port->HasDefaultMinMax()) {
+                bnode->CreatePredicate("lv2:default")->CreateObject(std::to_string(port->GetDefault()));
+                bnode->CreatePredicate("lv2:minimum")->CreateObject(std::to_string(port->GetMinimum()));
+                bnode->CreatePredicate("lv2:maximum")->CreateObject(std::to_string(port->GetMaximum()));
+            }
+
+            if (!port->GetComment().empty())
+                bnode->CreatePredicate("rdfs:comment")->CreateObject(MakeTTLString(port->GetComment()));
+            
+            ++index;
+        }
     }
 
     plugin.WriteFile(targetFileDir + "/" + targetName + ".ttl");

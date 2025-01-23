@@ -1,18 +1,28 @@
 #include "amp.hpp"
 
-void AmpPlugin::InitializePort(Grog::PortManager& manager) {
-    inputAudioPort = manager.CreatePort(
-        "Audio Input", "audio_in", Grog::PortType::AudioPort, Grog::PortDirection::InputPort);
-    outputAudioPort = manager.CreatePort(
-        "Audio Output", "audio_out", Grog::PortType::AudioPort, Grog::PortDirection::OutputPort);
+#define AMP_AUDIO_PORT_TYPE GROG_AUDIO_PORT_TYPE_STEREO
+
+AmpPlugin::AmpPlugin() {
+    audioInPort = CreateAudioPort("Audio In", "audio_in", Grog::PortType::InputPort, AMP_AUDIO_PORT_TYPE);
+    audioOutPort = CreateAudioPort("Audio Out", "audio_out", Grog::PortType::OutputPort, AMP_AUDIO_PORT_TYPE);
+    amplitudePort = CreateControlPort("Amplitude", "amp", 1.0f, 0.0f, 2.0f);
+    amplitudePort->SetComment("Amplitude of the output signal");
 }
 
 void AmpPlugin::Begin() {
 
 }
 
-void AmpPlugin::Process() {
-    
+void AmpPlugin::Process(uint32_t sampleCount) {
+    float amplitude = amplitudePort->GetValue<float>();
+
+    for (uint32_t i = 0; i < AMP_AUDIO_PORT_TYPE; ++i) {
+        float* audioIn = audioInPort->GetChannel<float>(i);
+        float* audioOut = audioOutPort->GetChannel<float>(i);
+        for (uint32_t j = 0; j < sampleCount; ++j) {
+            audioOut[j] = audioIn[j] * amplitude;
+        }
+    }
 }
 
 void AmpPlugin::End() {
@@ -28,11 +38,7 @@ bool AmpPlugin::HasGUI() const {
 }
 
 const char* AmpPlugin::GetName() const {
-    return "Amp Example";
-}
-
-Grog::AudioPluginType AmpPlugin::GetType() const {
-    return Grog::AudioPluginType::GeneratorPlugin;
+    return "Grog Amp";
 }
 
 Grog::AudioPlugin* Grog::InstantiatePlugin() {

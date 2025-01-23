@@ -24,16 +24,22 @@ function(_grog_add_plugin_lv2 target)
         return()
     endif()
 
+    set(GROG_AUDIO_PLUGIN_CLIENT_LV2URI "${arg_LV2URI}")
+    configure_file("${GROG_AUDIO_PLUGIN_CLIENT_LV2_DIR}/lv2_client_definitions.hpp.in"
+        "${CMAKE_BINARY_DIR}/${target}/headers/lv2_client_definitions.hpp" @ONLY)
+
     add_library("${target}_lv2" 
         SHARED 
-            ${GROG_AUDIO_PLUGIN_CLIENT_LV2_DIR}/grog_audio_plugin_client_lv2.cpp)
+            ${GROG_AUDIO_PLUGIN_CLIENT_LV2_DIR}/lv2_client.cpp)
     target_link_libraries("${target}_lv2" PRIVATE "${target}" "${LV2_LIBRARIES}")
+    target_include_directories("${target}_lv2" PRIVATE "${CMAKE_BINARY_DIR}/${target}/headers")
     set_target_properties("${target}_lv2"
         PROPERTIES
-            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/lv2"
-            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/lv2"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/lv2"
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/${target}.lv2"
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/${target}.lv2"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${target}/${target}.lv2"
     )
+    set_target_properties("${target}_lv2" PROPERTIES LINK_FLAGS_RELEASE -s)
 
     # Tool to generate plugin's metadata
     add_executable("${target}_lv2_metadata" 
