@@ -110,12 +110,16 @@ namespace Grog {
             };
         };
 
-        inline MidiMessageType GetMessageType() {
+        inline MidiMessageType GetMessageType() const {
             if (status >= 0x80 && status < 0xF0) {
                 return (MidiMessageType)(status & 0xF0U);
             } else {
                 return (MidiMessageType)status;
             }
+        }
+
+        inline MidiController GetController() const {
+            return (MidiController)data1;
         }
     };
 }
