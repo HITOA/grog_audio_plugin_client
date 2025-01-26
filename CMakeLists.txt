@@ -15,7 +15,14 @@ find_package(PkgConfig)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/formats/lv2)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/formats/standalone)
 
-add_library(grog_audio_plugin_client STATIC ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/grog_audio_plugin_client.cpp)
+add_library(grog_audio_plugin_client 
+    STATIC 
+        ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/grog_audio_plugin_client.cpp
+        ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/allocator.cpp
+        ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/audio_buffer.cpp
+        ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/control_port.cpp
+        ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/midi_buffer.cpp
+        ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/src/tlsf.c)
 target_include_directories(grog_audio_plugin_client PUBLIC ${GROG_AUDIO_PLUGIN_CLIENT_DIR}/include)
 
 function(grog_add_plugin target)

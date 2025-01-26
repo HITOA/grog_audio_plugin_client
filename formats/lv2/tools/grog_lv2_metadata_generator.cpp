@@ -1,9 +1,11 @@
+#include <grog_audio_plugin_client/grog_audio_plugin_client.hpp>
+
 #include <iostream>
 #include <string>
 #include <vector>
 #include <memory>
 #include <fstream>
-#include <grog_audio_plugin_client/grog_audio_plugin_client.hpp>
+#include <cctype>
 
 //Extremely simple rdf ttl writer
 
@@ -219,12 +221,96 @@ private:
     std::vector<std::shared_ptr<Subject>> subjects{};
 };
 
-std::string MakeTTLURI(const std::string& name) {
-    return std::string{ "<" } + name + ">";
+std::string MakeTTLURI(const std::string& str) {
+    return std::string{ "<" } + str + ">";
 }
 
 std::string MakeTTLString(const std::string& str) {
     return std::string{ "\"" } + str + "\"";
+}
+
+std::string MakeSymbol(const std::string& str) {
+    std::string r = "";
+    for (size_t i = 0; i < str.size(); ++i) {
+        if (isalnum(str[i])) {
+            r += tolower(str[i]);
+        } else if (isspace(str[i])) {
+            r += "_";
+        }
+    }
+    return r;
+}
+
+uint32_t AddAudioPort(std::shared_ptr<Predicate> portPredicate, const std::string& name, 
+    Grog::AudioBuffer* buffer, bool input, uint32_t idx) {
+
+    static const char* suffix[32] = { nullptr };
+    static const char* pg[32] = { nullptr };
+
+    switch (buffer->GetType()) {
+        case Grog::AudioBufferType::Mono:
+            suffix[0] = "";
+            pg[0] = "pg:center";
+            break;
+        case Grog::AudioBufferType::Stereo:
+            suffix[0] = "Left";
+            suffix[1] = "Right";
+            pg[0] = "pg:left";
+            pg[1] = "pg:right";
+            break;
+        default:
+            break;
+    }
+
+    for (uint32_t i = 0; i < buffer->GetChannelCount(); ++i) {
+        std::string fullname = name + " " + suffix[i];
+        std::string symbol = MakeSymbol(fullname);
+
+        auto bnode = portPredicate->CreateBNode();
+
+        if (input)
+            bnode->CreatePredicate("a")->CreateObject("lv2:InputPort")->CreateObject("lv2:AudioPort");
+        else
+            bnode->CreatePredicate("a")->CreateObject("lv2:OutputPort")->CreateObject("lv2:AudioPort");
+
+        bnode->CreatePredicate("lv2:index")->CreateObject(std::to_string(idx + i));
+        bnode->CreatePredicate("lv2:symbol")->CreateObject(MakeTTLString(symbol));
+        bnode->CreatePredicate("lv2:name")->CreateObject(MakeTTLString(fullname));
+        bnode->CreatePredicate("lv2:designation")->CreateObject(pg[i]);
+    }
+
+    return buffer->GetChannelCount();
+}
+
+void AddControlPort(std::shared_ptr<Predicate> portPredicate, Grog::ControlPort* port, uint32_t idx) {
+    std::string fullname = port->GetName();
+    std::string symbol = MakeSymbol(fullname);
+
+    auto bnode = portPredicate->CreateBNode();
+
+    bnode->CreatePredicate("a")->CreateObject("lv2:InputPort")->CreateObject("lv2:ControlPort");
+
+    bnode->CreatePredicate("lv2:index")->CreateObject(std::to_string(idx));
+    bnode->CreatePredicate("lv2:symbol")->CreateObject(MakeTTLString(symbol));
+    bnode->CreatePredicate("lv2:name")->CreateObject(MakeTTLString(fullname));
+    bnode->CreatePredicate("lv2:default")->CreateObject(std::to_string(port->GetDefaultValue()));
+    bnode->CreatePredicate("lv2:minimum")->CreateObject(std::to_string(port->GetMinimumValue()));
+    bnode->CreatePredicate("lv2:maximum")->CreateObject(std::to_string(port->GetMaximumValue()));
+}
+
+void AddMidiPort(std::shared_ptr<Predicate> portPredicate, Grog::MidiBuffer* port, uint32_t idx) {
+    std::string fullname = "Midi In";
+    std::string symbol = MakeSymbol(fullname);
+
+    auto bnode = portPredicate->CreateBNode();
+
+    bnode->CreatePredicate("a")->CreateObject("lv2:InputPort")->CreateObject("atom:AtomPort");
+
+    bnode->CreatePredicate("atom:bufferType")->CreateObject("atom:Sequence");
+    bnode->CreatePredicate("atom:supports")->CreateObject("midi:MidiEvent");
+    bnode->CreatePredicate("lv2:index")->CreateObject(std::to_string(idx));
+    bnode->CreatePredicate("lv2:symbol")->CreateObject(MakeTTLString(symbol));
+    bnode->CreatePredicate("lv2:name")->CreateObject(MakeTTLString(fullname));
 }
 
 int main(int argc, char** argv) {
@@ -249,71 +335,43 @@ int main(int argc, char** argv) {
     Grog::AudioPlugin* pluginInstance = Grog::InstantiatePlugin();
     
     RDF plugin{};
+    
     plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/lv2core#"), "lv2");
     plugin.CreatePrefix(MakeTTLURI("http://usefulinc.com/ns/doap#"), "doap");
     plugin.CreatePrefix(MakeTTLURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#"), "rdf");
     plugin.CreatePrefix(MakeTTLURI("http://www.w3.org/2000/01/rdf-schema#"), "rdfs");
+    plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/ext/atom#"), "atom");
+    plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/ext/port-props#"), "props");
+    plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/extensions/units#"), "units");
+    plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/ext/urid#"), "urid");
+    plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/ext/port-groups#"), "pg");
+    plugin.CreatePrefix(MakeTTLURI("http://lv2plug.in/ns/ext/midi#"), "midi");
+
     auto pluginSubject = plugin.CreateSubject(MakeTTLURI(targetLV2URI));
     pluginSubject->CreatePredicate("a")->CreateObject("lv2:Plugin");
     pluginSubject->CreatePredicate("doap:name")->CreateObject(MakeTTLString(pluginInstance->GetName()));
+
+    auto pluginRequiredFeaturePredicate = pluginSubject->CreatePredicate("lv2:requiredFeature");
+    pluginRequiredFeaturePredicate->CreateObject("urid:map");
+
+    auto pluginOptionalFeaturePredicate = pluginSubject->CreatePredicate("lv2:optionalFeature");
+    pluginOptionalFeaturePredicate->CreateObject("lv2:hardRTCapable");
+
     auto pluginPortPredicate = pluginSubject->CreatePredicate("lv2:port");
 
-    size_t index = 0;
-    for (size_t i = 0; i < pluginInstance->GetPortCount(); ++i) {
-        Grog::Port* port = pluginInstance->GetPort(i);
-        for (uint32_t j = 0; j < port->GetChannelCount(); ++j) {
-            std::string name = port->GetName();
-            std::string symbol = port->GetSymbol();
-            std::string nameSuffix = "";
-            std::string symbolSuffix = "";
+    uint32_t portIdx = 0;
 
-            if (port->GetChannelCount() > 1) {
-                nameSuffix = " " + std::to_string(j);
-                symbolSuffix = "_" + std::to_string(j);
-            }
+    if (pluginInstance->GetAudioInputBuffer())
+        portIdx += AddAudioPort(pluginPortPredicate, "Audio In", pluginInstance->GetAudioInputBuffer(), true, portIdx);
 
-            auto bnode = pluginPortPredicate->CreateBNode();
+    if (pluginInstance->GetAudioOutputBuffer())
+        portIdx += AddAudioPort(pluginPortPredicate, "Audio Out", pluginInstance->GetAudioOutputBuffer(), false, portIdx);
 
-            auto a = bnode->CreatePredicate("a");
+    for (uint32_t i = 0; i < pluginInstance->GetControlPortCount(); ++i)
+        AddControlPort(pluginPortPredicate, pluginInstance->GetControlPort(i), portIdx++);
 
-            switch(port->GetType()) {
-                case Grog::PortType::InputPort:
-                    a->CreateObject("lv2:InputPort");
-                    break;
-                case Grog::PortType::OutputPort:
-                    a->CreateObject("lv2:OutputPort");
-                    break;
-                default:
-                    break;
-            }
-
-            switch(port->GetDataType()) {
-                case Grog::PortDataType::AudioPort:
-                    a->CreateObject("lv2:AudioPort");
-                    break;
-                case Grog::PortDataType::ControlPort:
-                    a->CreateObject("lv2:ControlPort");
-                    break;
-                default:
-                    break;
-            }
-
-            bnode->CreatePredicate("lv2:index")->CreateObject(std::to_string(index));
-            bnode->CreatePredicate("lv2:symbol")->CreateObject(MakeTTLString(symbol + symbolSuffix));
-            bnode->CreatePredicate("lv2:name")->CreateObject(MakeTTLString(name + nameSuffix));
-
-            if (port->HasDefaultMinMax()) {
-                bnode->CreatePredicate("lv2:default")->CreateObject(std::to_string(port->GetDefault()));
-                bnode->CreatePredicate("lv2:minimum")->CreateObject(std::to_string(port->GetMinimum()));
-                bnode->CreatePredicate("lv2:maximum")->CreateObject(std::to_string(port->GetMaximum()));
-            }
-
-            if (!port->GetComment().empty())
-                bnode->CreatePredicate("rdfs:comment")->CreateObject(MakeTTLString(port->GetComment()));
-            
-            ++index;
-        }
-    }
+    if (pluginInstance->GetMidiInputBuffer())
+        AddMidiPort(pluginPortPredicate, pluginInstance->GetMidiInputBuffer(), portIdx++);
 
     plugin.WriteFile(targetFileDir + "/" + targetName + ".ttl");
 

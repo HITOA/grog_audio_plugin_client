@@ -1,70 +1,73 @@
 #include <grog_audio_plugin_client/grog_audio_plugin_client.hpp>
 
-
-Grog::Port::Port(const std::string& name, const std::string& symbol, PortType type, PortDataType dataType) :
-    name{ name }, symbol{ symbol }, type{ type }, dataType{ dataType } {}
-
-Grog::Port::~Port() {
-}
-
-void Grog::Port::SetChannelPtrs(void** ptr, uint32_t channelCount) {
-    channels = ptr;
-    this->channelCount = channelCount;
-}
-
-uint32_t Grog::Port::GetChannelCount() const {
-    return channelCount;
-}
+#include <cstring>
 
 Grog::AudioPlugin::~AudioPlugin() {
-    for (uint32_t i = 0; i < portCount; ++i)
-        delete ports[i];
+    if (controlPorts) {
+        allocator.Deallocate(controlPorts);
+        controlPorts = nullptr;
+    }
 }
 
-Grog::Port* Grog::AudioPlugin::GetPort(uint32_t idx) {
-    return ports[idx];
+Grog::Allocator* Grog::AudioPlugin::GetAllocator() {
+    return &allocator;
 }
 
-uint32_t Grog::AudioPlugin::GetPortCount() {
-    return portCount;
+void Grog::AudioPlugin::SetSampleRate(double sampleRate) {
+    this->sampleRate = sampleRate;
 }
 
-void** Grog::AudioPlugin::GetPtrs() {
-    return ptrs;
+double Grog::AudioPlugin::GetSampleRate() {
+    return sampleRate;
 }
 
-Grog::Port* Grog::AudioPlugin::CreatePort(const std::string& name, const std::string& symbol, 
-    PortType type, PortDataType dataType) {
-    if (portCount + 1 >= GROG_AUDIO_PLUGIN_PORT_MAX || ptrsOffset + 1 >= GROG_AUDIO_PLUGIN_PORT_MAX)
+void Grog::AudioPlugin::SetDataPtr(void* ptr) {
+    data = ptr;
+}
+
+void* Grog::AudioPlugin::GetDataPtr() {
+    return data;
+}
+
+Grog::AudioBuffer* Grog::AudioPlugin::GetAudioInputBuffer() {
+    return inputAudioBuffer;
+}
+
+Grog::AudioBuffer* Grog::AudioPlugin::GetAudioOutputBuffer() {
+    return outputAudioBuffer;
+}
+
+Grog::MidiBuffer* Grog::AudioPlugin::GetMidiInputBuffer() {
+    return inputMidiBuffer;
+}
+
+Grog::ControlPort* Grog::AudioPlugin::GetControlPort(uint32_t idx) {
+    if (controlPortCount <= idx)
         return nullptr;
-
-    Port* port = new Port{ name, symbol, type, dataType };
-    ports[portCount] = port;
-    ++portCount;
-    port->SetChannelPtrs(&ptrs[ptrsOffset], 1);
-    ptrsOffset += 1;
-    return port;
+    return controlPorts[idx];
 }
 
-Grog::Port* Grog::AudioPlugin::CreateAudioPort(const std::string& name, const std::string& symbol, 
-    PortType type, uint32_t channelCount) {
-    if (portCount + 1 >= GROG_AUDIO_PLUGIN_PORT_MAX || ptrsOffset + channelCount >= GROG_AUDIO_PLUGIN_PORT_MAX)
-        return nullptr;
-    Port* port = new Port{ name, symbol, type, PortDataType::AudioPort };
-    ports[portCount] = port;
-    ++portCount;
-    port->SetChannelPtrs(&ptrs[ptrsOffset], channelCount);
-    ptrsOffset += channelCount;
-    return port;
+uint32_t Grog::AudioPlugin::GetControlPortCount() const {
+    return controlPortCount;
 }
 
-Grog::Port* Grog::AudioPlugin::CreateControlPort(const std::string& name, const std::string& symbol, 
-    float defaultValue, float minimumValue, float maximumValue) {
-    Port* port = CreatePort(name, symbol, PortType::InputPort, PortDataType::ControlPort);
-    if (port == nullptr)
-        return nullptr;
-    port->SetDefault(defaultValue);
-    port->SetMinimum(minimumValue);
-    port->SetMaximum(maximumValue);
-    return port;
+void Grog::AudioPlugin::SetAudioInputBuffer(AudioBuffer* buffer) {
+    inputAudioBuffer = buffer;
+}
+
+void Grog::AudioPlugin::SetAudioOutputBuffer(AudioBuffer* buffer) {
+    outputAudioBuffer = buffer;
+}
+
+void Grog::AudioPlugin::SetMidiInputBuffer(MidiBuffer* buffer) {
+    inputMidiBuffer = buffer;
+}
+
+void Grog::AudioPlugin::AddControlPort(ControlPort* port) {
+    ControlPort** newControlPorts = (ControlPort**)allocator.Allocate(sizeof(ControlPort*) * (controlPortCount + 1));
+    memcpy(newControlPorts, controlPorts, sizeof(ControlPort*) * controlPortCount);
+    newControlPorts[controlPortCount] = port;
+    ++controlPortCount;
+    allocator.Deallocate(controlPorts);
+    controlPorts = newControlPorts;
 }

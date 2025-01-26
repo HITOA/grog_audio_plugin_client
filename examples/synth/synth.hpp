@@ -16,5 +16,15 @@ public:
     const char* GetName() const override;
 
 private:
-    Grog::Port* audioOutPort = nullptr;
+    Grog::AudioBuffer audioOut = { Grog::AudioBufferType::Stereo };
+
+    Grog::MidiBuffer midiIn = {};
+
+    Grog::ControlPort level = { "Level", 0.1f, 0.0f, 1.0f };
+    Grog::ControlPort attack = { "Attack", 0.1f, 0.001f, 5.0f };
+    Grog::ControlPort decay = { "Decay", 0.1f, 0.001f, 5.0f };
+    Grog::ControlPort sustain = { "Sustain", 0.5f, 0.0f, 1.0f };
+    Grog::ControlPort release = { "Release", 0.1f, 0.001f, 5.0f };
+
+    double position = 0.0;
 };

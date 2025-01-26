@@ -16,7 +16,7 @@ public:
     const char* GetName() const override;
 
 private:
-    Grog::Port* audioInPort = nullptr;
-    Grog::Port* audioOutPort = nullptr;
-    Grog::Port* amplitudePort = nullptr;
+    Grog::AudioBuffer audioIn = { Grog::AudioBufferType::Stereo };
+    Grog::AudioBuffer audioOut = { Grog::AudioBufferType::Stereo };
+    Grog::ControlPort amplitude = { "Amplitude", 1.0f, 0.0f, 2.0f };
 };
